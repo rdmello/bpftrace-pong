@@ -1,0 +1,143 @@
+// A simple pong game in bpftrace, meant for educational purposes.
+// Inspired by bpftrace-tetris.
+
+// pty_write(), defined in drivers/tty/pty.c.
+// Most terminal emulators write to the pty to ensure that job control
+// is managed by the kernel in a predictable way.
+// TODO: is there a way to intercept raw keypresses instead?
+// Filter to just one byte writes using the /../ syntax.
+kprobe:pty_write /arg2 == 1/ {
+	// '$' introduces a local variable.
+	// Also, C-style casts are allowed in bpftrace syntax.
+	$input_buffer_ptr = (int8*) arg1;
+
+	// Store the current keypress in a BPF map called "key"
+	// '@' introduces a global scope map.
+	@key = *($input_buffer_ptr);
+
+	// For debugging, will print the ASCII keycode entered by the user.
+	// printf("%d\n", @key);
+}
+
+// The BEGIN block is executed before any other probes are run.
+// Use this to perform some basic game initialization.
+BEGIN {
+        printf("\033[H\033[2J"); // clear screen
+	printf("\033[H"); // move cursor to top left
+        printf("Loading...");
+
+        // TODO: make these configurable via flags.
+        $WIDTH = 40; // Number of width blocks.
+        $HEIGHT = 12; // Number of height blocks.
+
+        // Initial ball position, in the middle of the screen.
+        @ball = (40 / 2, 12 / 2);
+
+        // Initial paddle positions. This is the position of the center of the paddle.
+        @left_paddle = 12 / 2;
+        @right_paddle = 12 / 2;
+        @paddle_radius = 3;
+
+        // Scoring
+        @score = (0, 0); // (player, computer)
+}
+
+// Executed when the BPF program is terminating...
+END {
+        // Clear all open maps, so they are not printed to screen on exit.
+        clear(@screenbuffer);
+        clear(@key);
+        clear(@ball);
+        clear(@left_paddle);
+        clear(@right_paddle);
+        clear(@paddle_radius);
+        clear(@score);
+}
+
+// The actual game loop. Runs every 0.1s.
+interval:ms:100 {
+
+        /////////////////////////////////////////////////////////
+        ///// Mark new ball/paddle position in the buffer. //////
+        /////////////////////////////////////////////////////////
+        //// Build the buffer that will be displayed.
+        // This is preferable to directly printing to the screen
+        // since it means that we don't have to manually control moving
+        // back and forth in the screen using terminal codes.
+        // Instead everything can be printed through one sequential
+        // pass through the buffer.
+        // First index: x, [0,$WIDTH). Second index: y, [0,$HEIGHT).
+        // Value: 
+        //   0 - blank space
+        //   1 - ball
+        //   2 - left paddle
+        //   3 - right paddle
+        $i = 0;
+        unroll(40) {
+                $j = 0;
+                unroll(12) {
+                        @screenbuffer[$i,$j] = 0;
+                        ++$j;
+                }
+                ++$i;
+        }
+        // Add the ball position to the screenbuffer.
+        @screenbuffer[@ball.0, @ball.1] = 1;
+
+        // Add the paddle positions to the screenbuffer.
+        $j = 0;
+        unroll(12) {
+                if ($j > (@left_paddle - @paddle_radius) && $j < (@left_paddle + @paddle_radius)) {
+                        @screenbuffer[0, $j] = 2;
+                }
+                if ($j > (@right_paddle - @paddle_radius) && $j < (@right_paddle + @paddle_radius)) {
+                        @screenbuffer[40-1, $j] = 3;
+                }
+                ++$j;
+        }
+
+        //////////////////////////////////////////////
+        ///// Draw the actual screenbuffer now. //////
+        //////////////////////////////////////////////
+	printf("\033[H"); // move cursor to top left
+	printf("\n"); // Start on the next line.
+
+	// Print the top wall.
+        printf("=");
+        unroll(40) {
+		printf("=");
+        }
+        printf("=\n");
+
+        // Print the vertical walls and the actual buffer.
+        $j = 0;
+        unroll(12) {
+                printf("|");
+                $i = 0;
+                unroll(40) {
+                        // Print this position in the screenbuffer.
+                        if (@screenbuffer[$i,$j] == 1) {
+                                printf("O"); // ball
+                        } else if (@screenbuffer[$i,$j] == 2) {
+                                printf("D"); // player's paddle (left)
+                        } else if (@screenbuffer[$i,$j] == 3) {
+                                printf("C"); // computer's paddle (right)
+                        } else {
+                                printf(" "); // blank space
+                        }
+                        ++$i;
+                }
+                printf("|\n");
+                ++$j;
+        }
+
+	// Print the bottom wall.
+        printf("=");
+        unroll(40) {
+		printf("=");
+        }
+        printf("=\n");
+
+        // Print the score
+        printf("Score: %d - %d\n", @score.0, @score.1);
+}
