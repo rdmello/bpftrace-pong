@@ -29,6 +29,7 @@ BEGIN {
         // These are configurable via the input arguments.
         @WIDTH = (uint64) $1; // Number of width blocks.
         @HEIGHT = (uint64) $2; // Number of height blocks.
+        @DIFFICULTY = (uint64) $3; // Difficulty range between 1 to 100.
 
         // Initial ball position, in the middle of the screen.
         @ball_position = ((int64) (@WIDTH / 2), (int64) (@HEIGHT / 2));
@@ -87,14 +88,24 @@ interval:ms:98 {
         // Very simple heuristic: if ball is up, move up. vice versa.
         $position_difference = @ball_position.1 - @right_paddle;
 
-        if ($position_difference == 0) {
-                // At the same height, nothing to do.
-        } else if ($position_difference > 0) {
-                // Need to move down.
-                ++@right_paddle;
-        } else if ($position_difference < 0) {
-                // Need to move up.
-                --@right_paddle;
+        // Add some jitter to the AI movement on lower difficulty
+        $roll = (rand % 99) + 1;
+        if ($roll > @DIFFICULTY) {
+                // Move in the opposite direction or sometimes forget to move.
+                $position_difference *= ((rand % 3) == 0) ? 0 : -1;
+        }
+
+        // Only update AI position when the ball is moving towards them.
+        if (@ball_velocity.0 > 0) {
+                if ($position_difference == 0) {
+                        // At the same height, nothing to do.
+                } else if ($position_difference > 0) {
+                        // Need to move down.
+                        ++@right_paddle;
+                } else if ($position_difference < 0) {
+                        // Need to move up.
+                        --@right_paddle;
+                }
         }
 
         ///////////////////////////////////
