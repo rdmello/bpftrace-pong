@@ -1,3 +1,12 @@
+// This is based on Masanori Misono's bpftrace-tetris.
+// The license is the same as the original.
+//
+// Copyright (C) 2020 Rylan Dmello <mail@rylan.coffee>
+//
+// This file is free software and is distributed under the terms of the GNU
+// General Public License (GPL); either version 2, or (at your option) any
+// later version.
+
 // A simple pong game in bpftrace, meant for educational purposes.
 // Inspired by bpftrace-tetris.
 
@@ -261,7 +270,7 @@ interval:ms:98 {
 END {
         // Print a victory screen if any player got over 7 points.
         if (@score.0 >= 7 || @score.1 >= 7) {
-                if (@score.0 > 7) {
+                if (@score.0 >= 7) {
                         printf("   _    ___      __                   __\n");
                         printf("  | |  / (_)____/ /_____  _______  __/ /\n");
                         printf("  | | / / / ___/ __/ __ \\/ ___/ / / / / \n");
