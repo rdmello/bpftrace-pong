@@ -61,6 +61,7 @@ END {
         clear(@score);
         clear(@WIDTH);
         clear(@HEIGHT);
+        clear(@DIFFICULTY);
 }
 
 // The actual game loop. Runs every 0.098s.
@@ -242,11 +243,11 @@ interval:ms:98 {
                 unroll($1) {
                         // Print this position in the screenbuffer.
                         if (@screenbuffer[$i,$j] == 1) {
-                                printf("O"); // ball
+                                printf("\033[43m \033[m"); // ball
                         } else if (@screenbuffer[$i,$j] == 2) {
-                                printf("D"); // player's paddle (left)
+                                printf("\033[42m \033[m"); // player's paddle (left)
                         } else if (@screenbuffer[$i,$j] == 3) {
-                                printf("C"); // computer's paddle (right)
+                                printf("\033[41m \033[m"); // computer's paddle (right)
                         } else {
                                 printf(" "); // blank space
                         }
