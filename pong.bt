@@ -59,7 +59,7 @@ END {
 // The actual game loop. Runs every 0.098s.
 interval:ms:98 {
         /////////////////////////////////////////////////////////
-        //// Update paddle position with keypresses         /////
+        //// Update player paddle position with keypresses //////
         /////////////////////////////////////////////////////////
         if (@key == 0x6A) {
                 // Down keypress.
@@ -74,12 +74,41 @@ interval:ms:98 {
         // Reset the @key value, so that we re-read the key on the next iteration.
         @key = 0;
 
+        //////////////////////////////////////////////////////////////
+        //// Update opponent paddle position based on heuristic //////
+        //////////////////////////////////////////////////////////////
+
+        // Very simple heuristic: if ball is up, move up. vice versa.
+        $position_difference = @ball_position.1 - @right_paddle;
+
+        if ($position_difference == 0) {
+                // At the same height, nothing to do.
+        } else if ($position_difference > 0) {
+                // Need to move down.
+                ++@right_paddle;
+        } else if ($position_difference < 0) {
+                // Need to move up.
+                --@right_paddle;
+        }
+
+        ///////////////////////////////////
+        //// Bound paddle positions  //////
+        ///////////////////////////////////
+
         // Bound the paddle positions by the top and bottom walls.
         if (@left_paddle < @paddle_radius - 1) {
                 @left_paddle = @paddle_radius - 1;
         }
         if (@left_paddle > 12 - @paddle_radius) {
                 @left_paddle = 12 - @paddle_radius;
+        }
+
+       // Also do this for the opponent paddle.
+        if (@right_paddle < @paddle_radius - 1) {
+                @right_paddle = @paddle_radius - 1;
+        }
+        if (@right_paddle > 12 - @paddle_radius) {
+                @right_paddle = 12 - @paddle_radius;
         }
 
         /////////////////////////////////////////////////////////
@@ -89,14 +118,34 @@ interval:ms:98 {
         // Update position with velocity.
         @ball_position = (@ball_position.0 + @ball_velocity.0, @ball_position.1 + @ball_velocity.1);
 
-        // Bounce off the walls.
+        // Bounce off the paddles.
         if (@ball_position.0 <= 1) {
-                @ball_position = (1, @ball_position.1);
-                @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+                // Check if the player's paddle is in the correct position.
+                $is_hit = (@ball_position.1 >= @left_paddle - @paddle_radius) &&
+                          (@ball_position.1 <= @left_paddle + @paddle_radius);
+                if ($is_hit) {
+                        @ball_position = (1, @ball_position.1);
+                        @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+                } else {
+                        // Its a miss...update score, reset ball position.
+                        @score = (@score.0, @score.1 + 1);
+                        @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
+                }
         } else if (@ball_position.0 >= 40-1) {
-                @ball_position = (40-2, @ball_position.1);
-                @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+                // Check if the AI's paddle is in the correct position.
+                $is_hit = (@ball_position.1 >= @right_paddle - @paddle_radius) &&
+                          (@ball_position.1 <= @right_paddle + @paddle_radius);
+                if ($is_hit) {
+                        @ball_position = (40-2, @ball_position.1);
+                        @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+                } else {
+                        // Its a miss...update score, reset ball position.
+                        @score = (@score.0 + 1, @score.1);
+                        @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
+                }
         }
+
+        // Bounce off the top walls.
         if (@ball_position.1 <= 0) {
                 @ball_position = (@ball_position.0, 0);
                 @ball_velocity = (@ball_velocity.0, -1 * @ball_velocity.1); // Flip y-velocity.
