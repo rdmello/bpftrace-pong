@@ -6,6 +6,9 @@ set -eu
 finish() { stty echo; }
 trap finish EXIT
 
+WIDTH=${1:-40}
+HEIGHT=${2:-12}
+
 # Disable echo so that input chars are not echoed in the terminal
 stty -echo
-bpftrace pong.bt
+bpftrace pong.bt $WIDTH $HEIGHT
