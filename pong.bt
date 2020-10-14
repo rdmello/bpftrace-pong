@@ -27,12 +27,12 @@ BEGIN {
         printf("Welcome to PONG!");
 
         // These are configurable via the input arguments.
-        @WIDTH = (uint64) $1; // Number of width blocks.
-        @HEIGHT = (uint64) $2; // Number of height blocks.
-        @DIFFICULTY = (uint64) $3; // Difficulty range between 1 to 100.
+        @WIDTH = $1; // Number of width blocks.
+        @HEIGHT = $2; // Number of height blocks.
+        @DIFFICULTY = $3; // Difficulty range between 1 to 100.
 
         // Initial ball position, in the middle of the screen.
-        @ball_position = ((int64) (@WIDTH / 2), (int64) (@HEIGHT / 2));
+        @ball_position = ((int64) ((uint64) @WIDTH / 2), (int64) ((uint64) @HEIGHT / 2));
 
         // Initial ball velocity. Add some jitter.
         $x_velocity = ((int64) ((rand % 2) * 2) - 1) * ((int64) (rand % 2) + 1); // [-2, -1, 1, 2]
@@ -40,28 +40,12 @@ BEGIN {
         @ball_velocity = ($x_velocity, $y_velocity);
 
         // Initial paddle positions. This is the position of the center of the paddle.
-        @left_paddle = (int64) (@HEIGHT / 2);
-        @right_paddle = (int64) (@HEIGHT / 2);
+        @left_paddle = (int64) ((uint64) @HEIGHT / 2);
+        @right_paddle = (int64) ((uint64) @HEIGHT / 2);
         @paddle_radius = 2;
 
         // Scoring
         @score = (0, 0); // (player, computer)
-}
-
-// Executed when the BPF program is terminating...
-END {
-        // Clear all open maps, so they are not printed to screen on exit.
-        clear(@screenbuffer);
-        clear(@key);
-        clear(@ball_position);
-        clear(@ball_velocity);
-        clear(@left_paddle);
-        clear(@right_paddle);
-        clear(@paddle_radius);
-        clear(@score);
-        clear(@WIDTH);
-        clear(@HEIGHT);
-        clear(@DIFFICULTY);
 }
 
 // The actual game loop. Runs every 0.098s.
@@ -90,7 +74,7 @@ interval:ms:98 {
         $position_difference = @ball_position.1 - @right_paddle;
 
         // Add some jitter to the AI movement on lower difficulty
-        $roll = (rand % 99) + 1;
+        $roll = (int64) (rand % 99) + 1;
         if ($roll > @DIFFICULTY) {
                 // Move in the opposite direction or sometimes forget to move.
                 $position_difference *= ((rand % 3) == 0) ? 0 : -1;
@@ -117,16 +101,16 @@ interval:ms:98 {
         if (@left_paddle < @paddle_radius - 1) {
                 @left_paddle = @paddle_radius - 1;
         }
-        if (@left_paddle > (int64) @HEIGHT - @paddle_radius) {
-                @left_paddle = (int64) @HEIGHT - @paddle_radius;
+        if (@left_paddle > @HEIGHT - @paddle_radius) {
+                @left_paddle = @HEIGHT - @paddle_radius;
         }
 
        // Also do this for the opponent paddle.
         if (@right_paddle < @paddle_radius - 1) {
                 @right_paddle = @paddle_radius - 1;
         }
-        if (@right_paddle > (int64) @HEIGHT - @paddle_radius) {
-                @right_paddle = (int64) @HEIGHT - @paddle_radius;
+        if (@right_paddle > @HEIGHT - @paddle_radius) {
+                @right_paddle = @HEIGHT - @paddle_radius;
         }
 
         /////////////////////////////////////////////////////////
@@ -150,7 +134,7 @@ interval:ms:98 {
                         @score = (@score.0, @score.1 + 1);
                         $needs_reset = true;
                 }
-        } else if (@ball_position.0 >= (int64) @WIDTH-1) {
+        } else if (@ball_position.0 >= @WIDTH-1) {
                 // Check if the AI's paddle is in the correct position.
                 $is_hit = (@ball_position.1 >= @right_paddle - @paddle_radius) &&
                           (@ball_position.1 <= @right_paddle + @paddle_radius);
@@ -166,7 +150,12 @@ interval:ms:98 {
 
         // Reset ball position after loss.
         if ($needs_reset) {
-                @ball_position = ((int64) (@WIDTH / 2), (int64) (@HEIGHT / 2));
+                // Exit if either player has hit 7 points.
+                if (@score.0 >= 7 || @score.1 >= 7) {
+                        exit();
+                }
+
+                @ball_position = ((int64) ((uint64) @WIDTH / 2), (int64) ((uint64) @HEIGHT / 2));
 
                 // Initial ball velocity. Add some jitter.
                 $x_velocity = ((int64) ((rand % 2) * 2) - 1) * ((int64) (rand % 2) + 1); // [-2, -1, 1, 2]
@@ -178,7 +167,7 @@ interval:ms:98 {
         if (@ball_position.1 <= 0) {
                 @ball_position = (@ball_position.0, 0);
                 @ball_velocity = (@ball_velocity.0, -1 * @ball_velocity.1); // Flip y-velocity.
-        } else if (@ball_position.1 >= (int64) @HEIGHT-1) {
+        } else if (@ball_position.1 >= @HEIGHT-1) {
                 @ball_position = (@ball_position.0, @HEIGHT-1);
                 @ball_velocity = (@ball_velocity.0, -1 * @ball_velocity.1); // Flip y-velocity.
         }
@@ -199,9 +188,9 @@ interval:ms:98 {
         //   2 - left paddle
         //   3 - right paddle
         $i = 0;
-        unroll($1) {
+        unroll ($1) {
                 $j = 0;
-                unroll($2) {
+                unroll ($2) {
                         @screenbuffer[$i,$j] = 0;
                         ++$j;
                 }
@@ -266,4 +255,38 @@ interval:ms:98 {
 
         // Print the score
         printf("Score: %d - %d\n", @score.0, @score.1);
+}
+
+// Executed when the BPF program is terminating...
+END {
+        // Print a victory screen if any player got over 7 points.
+        if (@score.0 >= 7 || @score.1 >= 7) {
+                if (@score.0 > 7) {
+                        printf("   _    ___      __                   __\n");
+                        printf("  | |  / (_)____/ /_____  _______  __/ /\n");
+                        printf("  | | / / / ___/ __/ __ \\/ ___/ / / / / \n");
+                        printf("  | |/ / / /__/ /_/ /_/ / /  / /_/ /_/  \n");
+                        printf("  |___/_/\\___/\\__/\\____/_/   \\__, (_)   \n");
+                        printf("                            /____/      \n");
+                } else {
+                        printf("      __                    __\n");
+                        printf("     / /   ____  __________/ /\n");
+                        printf("    / /   / __ \\/ ___/ ___/ / \n");
+                        printf("   / /___/ /_/ (__  |__  )_/  \n");
+                        printf("  /_____/\\____/____/____(_)   \n");
+                }
+        }
+
+        // Clear all open maps, so they are not printed to screen on exit.
+        clear(@screenbuffer);
+        clear(@key);
+        clear(@ball_position);
+        clear(@ball_velocity);
+        clear(@left_paddle);
+        clear(@right_paddle);
+        clear(@paddle_radius);
+        clear(@score);
+        clear(@WIDTH);
+        clear(@HEIGHT);
+        clear(@DIFFICULTY);
 }
