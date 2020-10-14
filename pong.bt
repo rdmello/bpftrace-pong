@@ -24,7 +24,7 @@ kprobe:pty_write /arg2 == 1/ {
 BEGIN {
         printf("\033[H\033[2J"); // clear screen
 	printf("\033[H"); // move cursor to top left
-        printf("Loading...");
+        printf("Welcome to PONG!");
 
         // TODO: make these configurable via flags.
         $WIDTH = 40; // Number of width blocks.
@@ -32,12 +32,16 @@ BEGIN {
 
         // Initial ball position, in the middle of the screen.
         @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
-        @ball_velocity = ((int64) 1, (int64) 1);
+
+        // Initial ball velocity. Add some jitter.
+        $x_velocity = ((int64) ((rand % 2) * 2) - 1) * ((int64) (rand % 2) + 1); // [-2, -1, 1, 2]
+        $y_velocity = ((int64) ((rand % 2) * 2) - 1) * ((int64) (rand % 2) + 1); // [-2, -1, 1, 2]
+        @ball_velocity = ($x_velocity, $y_velocity);
 
         // Initial paddle positions. This is the position of the center of the paddle.
         @left_paddle = 12 / 2;
         @right_paddle = 12 / 2;
-        @paddle_radius = 3;
+        @paddle_radius = 2;
 
         // Scoring
         @score = (0, 0); // (player, computer)
@@ -119,6 +123,7 @@ interval:ms:98 {
         @ball_position = (@ball_position.0 + @ball_velocity.0, @ball_position.1 + @ball_velocity.1);
 
         // Bounce off the paddles.
+        $needs_reset = false;
         if (@ball_position.0 <= 1) {
                 // Check if the player's paddle is in the correct position.
                 $is_hit = (@ball_position.1 >= @left_paddle - @paddle_radius) &&
@@ -129,7 +134,7 @@ interval:ms:98 {
                 } else {
                         // Its a miss...update score, reset ball position.
                         @score = (@score.0, @score.1 + 1);
-                        @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
+                        $needs_reset = true;
                 }
         } else if (@ball_position.0 >= 40-1) {
                 // Check if the AI's paddle is in the correct position.
@@ -141,8 +146,18 @@ interval:ms:98 {
                 } else {
                         // Its a miss...update score, reset ball position.
                         @score = (@score.0 + 1, @score.1);
-                        @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
+                        $needs_reset = true;
                 }
+        }
+
+        // Reset ball position after loss.
+        if ($needs_reset) {
+                @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
+
+                // Initial ball velocity. Add some jitter.
+                $x_velocity = ((int64) ((rand % 2) * 2) - 1) * ((int64) (rand % 2) + 1); // [-2, -1, 1, 2]
+                $y_velocity = ((int64) ((rand % 2) * 2) - 1) * ((int64) (rand % 2) + 1); // [-2, -1, 1, 2]
+                @ball_velocity = ($x_velocity, $y_velocity);
         }
 
         // Bounce off the top walls.
