@@ -31,7 +31,8 @@ BEGIN {
         $HEIGHT = 12; // Number of height blocks.
 
         // Initial ball position, in the middle of the screen.
-        @ball = (40 / 2, 12 / 2);
+        @ball_position = ((int64) (40 / 2), (int64) (12 / 2));
+        @ball_velocity = ((int64) 1, (int64) 1);
 
         // Initial paddle positions. This is the position of the center of the paddle.
         @left_paddle = 12 / 2;
@@ -47,18 +48,65 @@ END {
         // Clear all open maps, so they are not printed to screen on exit.
         clear(@screenbuffer);
         clear(@key);
-        clear(@ball);
+        clear(@ball_position);
+        clear(@ball_velocity);
         clear(@left_paddle);
         clear(@right_paddle);
         clear(@paddle_radius);
         clear(@score);
 }
 
-// The actual game loop. Runs every 0.1s.
-interval:ms:100 {
+// The actual game loop. Runs every 0.098s.
+interval:ms:98 {
+        /////////////////////////////////////////////////////////
+        //// Update paddle position with keypresses         /////
+        /////////////////////////////////////////////////////////
+        if (@key == 0x6A) {
+                // Down keypress.
+                @left_paddle += 1;
+        } else if (@key == 0x6B) {
+                // Up keypress.
+                @left_paddle -= 1;
+        } else {
+                // Do nothing.
+        }
+
+        // Reset the @key value, so that we re-read the key on the next iteration.
+        @key = 0;
+
+        // Bound the paddle positions by the top and bottom walls.
+        if (@left_paddle < @paddle_radius - 1) {
+                @left_paddle = @paddle_radius - 1;
+        }
+        if (@left_paddle > 12 - @paddle_radius) {
+                @left_paddle = 12 - @paddle_radius;
+        }
 
         /////////////////////////////////////////////////////////
-        ///// Mark new ball/paddle position in the buffer. //////
+        ///// Update ball position according to ~~physics~~ /////
+        /////////////////////////////////////////////////////////
+
+        // Update position with velocity.
+        @ball_position = (@ball_position.0 + @ball_velocity.0, @ball_position.1 + @ball_velocity.1);
+
+        // Bounce off the walls.
+        if (@ball_position.0 <= 1) {
+                @ball_position = (1, @ball_position.1);
+                @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+        } else if (@ball_position.0 >= 40-1) {
+                @ball_position = (40-2, @ball_position.1);
+                @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+        }
+        if (@ball_position.1 <= 0) {
+                @ball_position = (@ball_position.0, 0);
+                @ball_velocity = (@ball_velocity.0, -1 * @ball_velocity.1); // Flip y-velocity.
+        } else if (@ball_position.1 >= 12-1) {
+                @ball_position = (@ball_position.0, 12-1);
+                @ball_velocity = (@ball_velocity.0, -1 * @ball_velocity.1); // Flip y-velocity.
+        }
+
+        /////////////////////////////////////////////////////////
+        ///// Populate new ball/paddle position in the buffer. //
         /////////////////////////////////////////////////////////
         //// Build the buffer that will be displayed.
         // This is preferable to directly printing to the screen
@@ -69,7 +117,7 @@ interval:ms:100 {
         // First index: x, [0,$WIDTH). Second index: y, [0,$HEIGHT).
         // Value: 
         //   0 - blank space
-        //   1 - ball
+        //   1 - ball_position
         //   2 - left paddle
         //   3 - right paddle
         $i = 0;
@@ -81,8 +129,8 @@ interval:ms:100 {
                 }
                 ++$i;
         }
-        // Add the ball position to the screenbuffer.
-        @screenbuffer[@ball.0, @ball.1] = 1;
+        // Add the ball_position position to the screenbuffer.
+        @screenbuffer[@ball_position.0, @ball_position.1] = 1;
 
         // Add the paddle positions to the screenbuffer.
         $j = 0;
