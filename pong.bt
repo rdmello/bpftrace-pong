@@ -133,11 +133,15 @@ interval:ms:98 {
         $needs_reset = false;
         if (@ball_position.0 <= 1) {
                 // Check if the player's paddle is in the correct position.
-                $is_hit = (@ball_position.1 >= @left_paddle - @paddle_radius) &&
-                          (@ball_position.1 <= @left_paddle + @paddle_radius);
+                $is_hit = (@ball_position.1 > @left_paddle - @paddle_radius) &&
+                          (@ball_position.1 < @left_paddle + @paddle_radius);
                 if ($is_hit) {
+                        // Flip y-velocity if the ball hit the "edge" of the paddle.
+                        $is_edge_hit = (@ball_position.1 == @left_paddle - @paddle_radius + 1 && @ball_velocity.1 > 0) ||
+                                       (@ball_position.1 == @left_paddle + @paddle_radius - 1 && @ball_velocity.1 < 0);
+
                         @ball_position = (1, @ball_position.1);
-                        @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+                        @ball_velocity = (-1 * @ball_velocity.0, ($is_edge_hit ? -1 : 1) * @ball_velocity.1);
                 } else {
                         // Its a miss...update score, reset ball position.
                         @score = (@score.0, @score.1 + 1);
@@ -145,11 +149,15 @@ interval:ms:98 {
                 }
         } else if (@ball_position.0 >= @WIDTH-1) {
                 // Check if the AI's paddle is in the correct position.
-                $is_hit = (@ball_position.1 >= @right_paddle - @paddle_radius) &&
-                          (@ball_position.1 <= @right_paddle + @paddle_radius);
+                $is_hit = (@ball_position.1 > @right_paddle - @paddle_radius) &&
+                          (@ball_position.1 < @right_paddle + @paddle_radius);
                 if ($is_hit) {
+                        // Flip y-velocity if the ball hit the "edge" of the paddle.
+                        $is_edge_hit = (@ball_position.1 == @right_paddle - @paddle_radius + 1 && @ball_velocity.1 > 0) ||
+                                       (@ball_position.1 == @right_paddle + @paddle_radius - 1 && @ball_velocity.1 < 0);
+
                         @ball_position = (@WIDTH-2, @ball_position.1);
-                        @ball_velocity = (-1 * @ball_velocity.0, @ball_velocity.1); // Flip x-velocity.
+                        @ball_velocity = (-1 * @ball_velocity.0, ($is_edge_hit ? -1 : 1) * @ball_velocity.1);
                 } else {
                         // Its a miss...update score, reset ball position.
                         @score = (@score.0 + 1, @score.1);
