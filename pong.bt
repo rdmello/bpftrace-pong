@@ -159,11 +159,6 @@ interval:ms:98 {
 
         // Reset ball position after loss.
         if ($needs_reset) {
-                // Exit if either player has hit 7 points.
-                if (@score.0 >= 7 || @score.1 >= 7) {
-                        exit();
-                }
-
                 @ball_position = ((int64) ((uint64) @WIDTH / 2), (int64) ((uint64) @HEIGHT / 2));
 
                 // Initial ball velocity. Add some jitter.
@@ -196,6 +191,7 @@ interval:ms:98 {
         //   1 - ball_position
         //   2 - left paddle
         //   3 - right paddle
+        //   4 - center line
         $i = 0;
         unroll ($1) {
                 $j = 0;
@@ -205,6 +201,14 @@ interval:ms:98 {
                 }
                 ++$i;
         }
+
+        // Add the center line to the screenbuffer
+        $j = 0;
+        unroll($2) {
+                @screenbuffer[(uint64) @WIDTH/2, $j] = 4;
+                ++$j;
+        }
+
         // Add the ball_position position to the screenbuffer.
         @screenbuffer[@ball_position.0, @ball_position.1] = 1;
 
@@ -227,43 +231,53 @@ interval:ms:98 {
 	printf("\n"); // Start on the next line.
 
 	// Print the top wall.
-        printf("=");
+	printf("\033[44m \033[m");
         unroll($1) {
-		printf("=");
+		printf("\033[44m \033[m");
         }
-        printf("=\n");
+	printf("\033[44m \033[m");
+        printf("\n");
 
         // Print the vertical walls and the actual buffer.
         $j = 0;
         unroll($2) {
-                printf("|");
+        	printf("\033[44m \033[m");
                 $i = 0;
                 unroll($1) {
                         // Print this position in the screenbuffer.
                         if (@screenbuffer[$i,$j] == 1) {
-                                printf("\033[43m \033[m"); // ball
+                                printf("\033[33mO\033[m"); // ball
                         } else if (@screenbuffer[$i,$j] == 2) {
                                 printf("\033[42m \033[m"); // player's paddle (left)
                         } else if (@screenbuffer[$i,$j] == 3) {
                                 printf("\033[41m \033[m"); // computer's paddle (right)
+                        } else if (@screenbuffer[$i,$j] == 4) {
+                                printf("|");
                         } else {
                                 printf(" "); // blank space
                         }
                         ++$i;
                 }
-                printf("|\n");
+        	printf("\033[44m \033[m");
+                printf("\n");
                 ++$j;
         }
 
 	// Print the bottom wall.
-        printf("=");
+	printf("\033[44m \033[m");
         unroll($1) {
-		printf("=");
+		printf("\033[44m \033[m");
         }
-        printf("=\n");
+	printf("\033[44m \033[m");
+        printf("\n");
 
         // Print the score
-        printf("Score: %d - %d\n", @score.0, @score.1);
+        printf("| Move: J/K | Score: %d - %d | Exit: Ctrl+C |\n", @score.0, @score.1);
+
+	// Exit if either player has hit 7 points.
+	if (@score.0 >= 7 || @score.1 >= 7) {
+		exit();
+	}
 }
 
 // Executed when the BPF program is terminating...
