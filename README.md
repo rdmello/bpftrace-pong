@@ -2,7 +2,7 @@
 
 A small command-line pong game that is implemented using bpftrace.
 
-<image src="https://i.imgur.com/G1hjyYO.png" width="50%"/>
+<image src="https://i.imgur.com/5n8WNIF.gif" width="50%"/>
 
 Inspired by [bpftrace tetris](https://github.com/mmisono/bpftrace-tetris)
 
